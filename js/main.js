@@ -1,6 +1,27 @@
 'use strict';
 
+const detectIntersect = (firstObj, secondObj) => {
+  return (
+    firstObj.x < secondObj.x + secondObj.width &&
+    secondObj.x < firstObj.x + firstObj.width &&
+    firstObj.y < secondObj.y + secondObj.height &&
+    secondObj.y < firstObj.y + firstObj.height
+  );
+};
+
 (() => {
+  const GAME = {
+    ALIENS_ROWS: 5,
+    ALIENS_IN_ROW: 10,
+    LEVELS: {
+      FIRST: 50,
+      SECOND: 40,
+      THIRD: 20,
+      FOURTH: 15,
+      FIFTH: 6,
+    },
+  };
+
   const SCREEN = {
     WIDTH: 510,
     HEIGHT: 600,
@@ -26,7 +47,7 @@
   const BULLET = {
     WIDTH: 2,
     HEIGHT: 6,
-    VELOCITY: 5,
+    VELOCITY: 4,
     BACKGROUND_COLOR: '#ffffff',
   };
 
@@ -76,6 +97,8 @@
       Bullets.init();
       Bullet.init();
 
+      this.gameLevel = GAME.LEVELS.FIRST;
+
       this.pressedKeys = {
         Space: false,
         KeyA: false,
@@ -85,8 +108,8 @@
 
     render() {
       Screen.render();
-      Tank.render();
 
+      Tank.render();
       Bullets.render();
       Aliens.render();
     },
@@ -94,7 +117,7 @@
     update(timestamp) {
       Tank.update();
       Bullets.update();
-      Aliens.update(timestamp);
+      Aliens.update();
     },
   };
 
@@ -179,10 +202,10 @@
       this.bullets = [];
     },
 
-    create({ x, width, y }) {
-      const obj = Object.create(Bullet);
+    create({ x, y, width, direction }) {
+      const bullet = Object.create(Bullet);
 
-      this.bullets.push(obj.init(x + width / 2, y - 10));
+      this.bullets.push(bullet.init(x + width / 2, y - 10, direction));
     },
 
     render() {
@@ -190,12 +213,43 @@
       this.bullets = this.bullets.filter(
         (bullet) => bullet.y + bullet.height > 0
       );
-
       this.bullets.map((bullet) => bullet.render());
     },
 
     update() {
-      this.bullets.map((bullet) => bullet.update());
+      const aliens = Aliens.getAliens();
+
+      this.bullets.forEach((bullet, index, bulletsCollection) => {
+        aliens.forEach((alien, aIndex, aliensCollection) => {
+          const isHitDetected = detectIntersect(bullet, alien);
+
+          if (isHitDetected) {
+            aliensCollection.splice(aIndex, 1);
+            bulletsCollection.splice(index, 1);
+
+            switch (aliensCollection.length) {
+              case 40: {
+                Game.gameLevel = GAME.LEVELS.SECOND;
+                break;
+              }
+              case 20: {
+                Game.gameLevel = GAME.LEVELS.THIRD;
+                break;
+              }
+              case 6: {
+                Game.gameLevel = GAME.LEVELS.FOURTH;
+                break;
+              }
+              case 1: {
+                Game.gameLevel = GAME.LEVELS.FIFTH;
+                break;
+              }
+            }
+          }
+        });
+
+        bullet.update();
+      });
     },
   };
 
@@ -203,6 +257,7 @@
     init(
       x = 50,
       y = 150,
+      direction = -1,
       width = BULLET.WIDTH,
       height = BULLET.HEIGHT,
       velocity = BULLET.VELOCITY,
@@ -214,6 +269,7 @@
       this.width = width;
       this.height = height;
       this.velocity = velocity;
+      this.direction = direction;
       this.backgroundColor = backgroundColor;
       this.ctx = document.getElementById(canvasID).getContext('2d');
 
@@ -228,7 +284,7 @@
     update() {
       this.clear();
 
-      this.y -= this.velocity;
+      this.y += this.velocity * this.direction;
     },
 
     clear() {
@@ -266,6 +322,15 @@
       this.ctx.clearRect(this.x, this.y, this.width, this.height);
     },
 
+    shoot() {
+      Bullets.create({
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        direction: 1,
+      });
+    },
+
     update(direction = 1, isNextLevel = false) {
       this.clear();
 
@@ -283,60 +348,62 @@
       this.direction = 1;
     },
 
+    getAliens() {
+      return this.aliens;
+    },
+
     createAliens() {
       const aliensCollection = [];
       const marginRight = 10;
       const rowsMargin = 16;
 
-      for (let i = 1; i <= 5; i++) {
-        const rowCollection = [];
-
-        for (let j = 1; j <= 10; j++) {
+      for (let i = 1; i <= GAME.ALIENS_ROWS; i++) {
+        for (let j = 1; j <= GAME.ALIENS_IN_ROW; j++) {
           const obj = Object.create(Alien);
 
-          rowCollection.push(
+          aliensCollection.push(
             obj.init(
               (ALIEN.WIDTH + marginRight) * j,
               (ALIEN.HEIGHT + rowsMargin) * i
             )
           );
         }
-
-        aliensCollection.push(rowCollection);
       }
 
       return aliensCollection;
     },
 
     render() {
-      this.aliens.map((row) => {
-        row.map((alien) => {
-          alien.render();
-        });
+      this.aliens.map((alien) => {
+        alien.render();
       });
     },
 
     update() {
+      const aliens = this.getAliens();
       let min = 510;
       let max = 0;
 
-      if (frames % 40 === 0) {
-        this.aliens.map((row) => {
-          row.map((alien) => {
-            alien.update(this.direction);
+      // shoot
+      if (Math.random() < 0.03 && aliens.length) {
+        let randomAlien =
+          aliens[Math.round(Math.random() * (aliens.length - 1))];
+      }
 
-            max = Math.max(max, alien.x + alien.width);
-            min = Math.min(min, alien.x);
-          });
+      if (frames % Game.gameLevel === 0) {
+        this.aliens.map((alien) => {
+          alien.update(this.direction);
+
+          max = Math.max(max, alien.x + alien.width);
+          min = Math.min(min, alien.x);
         });
 
+        /** change direction */
         if (max > SCREEN.WIDTH - 30 || min < 30) {
           this.direction *= -1;
 
-          this.aliens.map((row) => {
-            row.map((alien) => {
-              alien.update(this.direction, true);
-            });
+          this.aliens.map((alien) => {
+            alien.update(this.direction, true);
           });
         }
       }
