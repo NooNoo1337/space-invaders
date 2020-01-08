@@ -9,7 +9,16 @@ const detectIntersect = (firstObj, secondObj) => {
   );
 };
 
+const test = (firstObj, secondObj) => {
+  return (
+    firstObj.y < secondObj.y + secondObj.height &&
+    secondObj.y < firstObj.y + firstObj.height
+  );
+};
+
 (() => {
+  const { requestAnimationFrame } = window;
+
   const GAME = {
     ALIENS_ROWS: 5,
     ALIENS_IN_ROW: 10,
@@ -98,12 +107,16 @@ const detectIntersect = (firstObj, secondObj) => {
       Bullet.init();
 
       this.gameLevel = GAME.LEVELS.FIRST;
+      this.frames = 0;
+      this.lastRender = 0;
 
       this.pressedKeys = {
         Space: false,
         KeyA: false,
         KeyD: false,
       };
+
+      this.run = this.run.bind(this);
     },
 
     render() {
@@ -118,6 +131,19 @@ const detectIntersect = (firstObj, secondObj) => {
       Tank.update();
       Bullets.update();
       Aliens.update();
+    },
+
+    run(timestamp) {
+      const progress = timestamp - this.lastRender;
+
+      this.frames++;
+
+      Game.update(progress);
+      Game.render();
+
+      this.lastRender = timestamp;
+
+      requestAnimationFrame(this.run);
     },
   };
 
@@ -385,12 +411,8 @@ const detectIntersect = (firstObj, secondObj) => {
       let max = 0;
 
       // shoot
-      if (Math.random() < 0.03 && aliens.length) {
-        let randomAlien =
-          aliens[Math.round(Math.random() * (aliens.length - 1))];
-      }
 
-      if (frames % Game.gameLevel === 0) {
+      if (Game.frames % Game.gameLevel === 0) {
         this.aliens.map((alien) => {
           alien.update(this.direction);
 
@@ -410,24 +432,6 @@ const detectIntersect = (firstObj, secondObj) => {
     },
   };
 
-  const { requestAnimationFrame } = window;
-  let lastRender = 0;
-  let frames = 0;
-
   Game.init();
-
-  const gameLoop = (timestamp) => {
-    const progress = timestamp - lastRender;
-
-    frames++;
-
-    Game.update(progress);
-    Game.render();
-
-    lastRender = timestamp;
-
-    requestAnimationFrame(gameLoop);
-  };
-
-  requestAnimationFrame(gameLoop);
+  requestAnimationFrame(Game.run);
 })();
